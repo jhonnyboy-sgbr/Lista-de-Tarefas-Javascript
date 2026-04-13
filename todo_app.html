@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>To-Do App - Single File</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --done: #10b981;
+      --shadow: 0 6px 18px rgba(0,0,0,.08);
+    }
+    [data-theme="dark"] {
+      --bg: #0b1020;
+      --card: #141a2b;
+      --text: #e5e7eb;
+      --muted: #a3a3a3;
+      --border: #2b2f54;
+      --accent: #60a5fa;
+      --done: #34d399;
+      --shadow: 0 6px 18px rgba(0,0,0,.5);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: var(--bg);
+      color: var(--text);
+      display: flex; justify-content: center; align-items: flex-start; padding: 40px;
+    }
+    .container {
+      width: min(1000px, 92%);
+    }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h1 { font-size: 1.4rem; margin: 0; }
+    .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-weight: 600; }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 8px; }
+    #themeBtn { cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text); padding: 8px 12px; border-radius: 6px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    input, textarea, select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text); }
+    textarea { resize: vertical; min-height: 60px; }
+    .btn { padding: 12px 16px; border: none; border-radius: 6px; cursor: pointer; background: var(--accent); color: white; font-weight: 600; }
+    .btn.secondary { background: #e2e8f0; color: #111; font-weight: 600; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 6px; }
+    .filters label { font-size: 0.9em; color: var(--muted); }
+    #taskList { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .task { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 12px; border-radius: 8px; background: #fff; border: 1px solid var(--border); transition: transform .2s ease, background .2s ease; }
+    .task.dragging { opacity: 0.5; }
+    .task.completed { opacity: .6; text-decoration: line-through; }
+    .left { display: flex; gap: 8px; align-items: center; }
+    .title { font-weight: 600; }
+    .desc { display: block; font-size: 0.9em; color: var(--muted); }
+    .category { background: #eef2f7; border-radius: 999px; padding: 4px 10px; font-size: 0.8em; }
+    .edit-area { margin-top: 8px; padding: 8px; border-radius: 6px; border: 1px dashed #ccc; background: #fbfbfd; }
+    .right { display: flex; gap: 6px; align-items: center; }
+    .left, .right { align-items: center; }
+    .edit-area input, .edit-area textarea { width: 100%; margin-top: 6px; }
+    .stats { display: flex; gap: 12px; align-items: center; margin: 10px 0 6px; color: var(--muted); }
+    .export-import { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+      .task { grid-template-columns: 1fr; }
+      .right { justify-content: flex-end; }
+    }
+    /* CSS for dark mode smoother transitions */
+    * { transition: background-color .2s ease, color .2s ease; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>To-Do App (Single File)</h1>
+        <span class="badge" id="summary">Carregando...</span>
+      </div>
+      <div class="theme-toggle">
+        <span>Modo</span>
+        <button id="themeBtn" title="Alternar tema">🌗</button>
+      </div>
+    </header>
+
+    <section class="card" aria-label="Nova tarefa">
+      <form id="taskForm" class="grid">
+        <input type="text" id="taskTitle" placeholder="Nova tarefa" required />
+        <input type="text" id="taskCategory" placeholder="Categoria (ex.: Trabalho)" />
+        <textarea id="taskDesc" placeholder="Descrição (opcional)"></textarea>
+        <button class="btn" type="submit" style="grid-column: span 2; height: 44px;">Adicionar</button>
+      </form>
+      <div class="stats">
+        <span>Total: <strong id="totalCount">0</strong></span>
+        <span>Concluídas: <strong id="completedCount">0</strong></span>
+        <span>Pendentes: <strong id="pendingCount">0</strong></span>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Filtros">
+      <div class="filters">
+        <div>
+          <label for="statusFilter">Status:</label>
+          <select id="statusFilter">
+            <option value="all">Todos</option>
+            <option value="open">Pendentes</option>
+            <option value="done">Concluídas</option>
+          </select>
+        </div>
+        <div>
+          <label for="categoryFilter">Categoria:</label>
+          <select id="categoryFilter"><option value="all">Todas</option></select>
+        </div>
+        <button id="exportBtn" class="btn" style="height:40px">Exportar JSON</button>
+        <button id="importBtn" class="btn secondary" style="height:40px">Importar JSON</button>
+        <input type="file" id="importInput" accept="application/json" style="display:none" />
+      </div>
+    </section>
+
+    <section class="card" aria-label="Lista de tarefas">
+      <ul id="taskList"></ul>
+      <p id="emptyState" style="text-align:center; color:var(--muted); display:none;">Sem tarefas. Adicione uma nova para começar!</p>
+    </section>
+  </div>
+
+  <script>
+    // To-Do App (single file) with:
+    // - add/edit/delete/complete
+    // - category filter & status filter
+    // - localStorage persistence
+    // - drag-and-drop reordering
+    // - export/import JSON
+    // - dark mode
+
+    // State
+    let tasks = [];
+
+    // DOM refs
+    const taskList = document.getElementById('taskList');
+    const taskTitle = document.getElementById('taskTitle');
+    const taskCategory = document.getElementById('taskCategory');
+    const taskDesc = document.getElementById('taskDesc');
+    const statusFilter = document.getElementById('statusFilter');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const totalCountEl = document.getElementById('totalCount');
+    const completedCountEl = document.getElementById('completedCount');
+    const pendingCountEl = document.getElementById('pendingCount');
+    const summary = document.getElementById('summary');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importInput = document.getElementById('importInput');
+    const themeBtn = document.getElementById('themeBtn');
+
+    // Init
+    function loadTasks() {
+      try {
+        const raw = localStorage.getItem('todo_tasks');
+        if (raw) tasks = JSON.parse(raw);
+      } catch {
+        tasks = [];
+      }
+      // ensure order values exist
+      tasks.forEach((t, idx) => t.order = idx);
+    }
+
+    function saveTasks() {
+      localStorage.setItem('todo_tasks', JSON.stringify(tasks));
+    }
+
+    function getCategories() {
+      const s = new Set();
+      tasks.forEach(t => s.add(t.category || 'Sem Categoria'));
+      return Array.from(s);
+    }
+
+    function updateCategoryFilter() {
+      categoryFilter.innerHTML = '<option value="all">Todas</option>';
+      getCategories().forEach(cat => {
+        const o = document.createElement('option');
+        o.value = cat;
+        o.textContent = cat;
+        categoryFilter.appendChild(o);
+      });
+    }
+
+    function render() {
+      // update categories options
+      updateCategoryFilter();
+
+      // counts
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.completed).length;
+      const pending = total - completed;
+      totalCountEl.textContent = total;
+      completedCountEl.textContent = completed;
+      pendingCountEl.textContent = pending;
+      summary.textContent = `${total} tarefas • ${completed} concluídas`;
+
+      // list
+      taskList.innerHTML = '';
+      const status = statusFilter.value;
+      const cat = categoryFilter.value;
+      const visible = tasks
+        .slice()
+        .sort((a,b)=> a.order - b.order)
+        .filter(t => {
+          if (status === 'open' && t.completed) return false;
+          if (status === 'done' && !t.completed) return false;
+          if (cat !== 'all' && t.category !== cat) return false;
+          return true;
+        });
+
+      if (visible.length === 0) {
+        document.getElementById('emptyState').style.display = 'block';
+      } else {
+        document.getElementById('emptyState').style.display = 'none';
+      }
+
+      visible.forEach(t => {
+        const li = document.createElement('li');
+        li.className = 'task' + (t.completed ? ' completed' : '');
+        li.draggable = true;
+        li.dataset.id = t.id;
+
+        // left - checkbox + content
+        const left = document.createElement('div'); left.className = 'left';
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.completed;
+        cb.addEventListener('change', () => { t.completed = cb.checked; saveAndRender(); });
+        const titleEl = document.createElement('span'); titleEl.className = 'title'; titleEl.textContent = t.title;
+        const descEl = document.createElement('span'); descEl.className = 'desc'; descEl.textContent = t.description || '';
+        const catEl = document.createElement('span'); catEl.className = 'category'; catEl.textContent = t.category;
+        left.appendChild(cb); left.appendChild(titleEl); if (t.description) left.appendChild(descEl); left.appendChild(catEl);
+
+        // right - edit/delete
+        const right = document.createElement('div'); right.className = 'right';
+        const editBtn = document.createElement('button'); editBtn.textContent = '✎'; editBtn.title = 'Editar';
+        editBtn.addEventListener('click', () => toggleEditArea(li, t));
+        const delBtn = document.createElement('button'); delBtn.textContent = '🗑'; delBtn.title = 'Excluir';
+        delBtn.addEventListener('click', () => { if (confirm('Excluir esta tarefa?')) deleteTask(t.id); });
+        right.appendChild(editBtn); right.appendChild(delBtn);
+
+        // edit area (inlined)
+        const editArea = document.createElement('div'); editArea.className = 'edit-area'; editArea.style.display = 'none';
+        const etTitle = document.createElement('input'); etTitle.type='text'; etTitle.value = t.title; etTitle.placeholder = 'Título';
+        const etDesc = document.createElement('textarea'); etDesc.value = t.description || ''; etDesc.placeholder = 'Descrição';
+        const etCat = document.createElement('input'); etCat.type='text'; etCat.value = t.category; etCat.placeholder = 'Categoria';
+        const saveBtn = document.createElement('button'); saveBtn.textContent = 'Salvar';
+        saveBtn.style.marginRight = '8px';
+        saveBtn.addEventListener('click', () => {
+          t.title = etTitle.value.trim() || t.title;
+          t.description = etDesc.value.trim();
+          t.category = etCat.value.trim() || 'Sem Categoria';
+          saveAndRender();
+        });
+        const cancelBtn = document.createElement('button'); cancelBtn.textContent = 'Cancelar';
+        cancelBtn.addEventListener('click', () => { editArea.style.display = 'none'; });
+        editArea.appendChild(document.createTextNode('Editar: ')); editArea.appendChild(document.createElement('br'));
+        editArea.appendChild(etTitle); editArea.appendChild(document.createElement('br'));
+        editArea.appendChild(etDesc); editArea.appendChild(document.createElement('br'));
+        editArea.appendChild(etCat); editArea.appendChild(document.createElement('br'));
+        editArea.appendChild(saveBtn); editArea.appendChild(cancelBtn);
+
+        li.appendChild(left); li.appendChild(right); li.appendChild(editArea);
+
+        // drag-and-drop
+        li.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', String(t.id)); li.classList.add('dragging'); });
+        li.addEventListener('dragover', e => e.preventDefault());
+        li.addEventListener('drop', e => {
+          e.preventDefault();
+          const srcId = e.dataTransfer.getData('text/plain');
+          if (srcId && srcId != t.id) reorder(parseInt(srcId, 10), t.id);
+          li.classList.remove('dragging');
+        });
+
+        taskList.appendChild(li);
+      });
+    }
+
+    function toggleEditArea(li, t) {
+      const editArea = li.querySelector('.edit-area');
+      if (!editArea) return;
+      if (editArea.style.display === 'block') {
+        editArea.style.display = 'none';
+      } else {
+        // set current values into inputs
+        const inputs = editArea.querySelectorAll('input, textarea');
+        if (inputs.length >= 3) {
+          inputs[0].value = t.title; inputs[1].value = t.description || ''; inputs[2].value = t.category;
+        }
+        editArea.style.display = 'block';
+      }
+    }
+
+    function addTaskFromForm(e) {
+      e.preventDefault();
+      const title = taskTitle.value.trim();
+      const category = taskCategory.value.trim() || 'Sem Categoria';
+      const description = taskDesc.value.trim();
+      if (!title) return;
+      const newTask = {
+        id: Date.now(),
+        title,
+        description,
+        category,
+        completed: false,
+        createdAt: Date.now(),
+        order: tasks.length
+      };
+      tasks.push(newTask);
+      taskTitle.value = ''; taskCategory.value = ''; taskDesc.value = '';
+      saveAndRender();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      tasks.forEach((t, idx) => t.order = idx);
+      saveAndRender();
+    }
+
+    function reorder(dragId, targetId) {
+      const dragIdx = tasks.findIndex(t => t.id === dragId);
+      const targetIdx = tasks.findIndex(t => t.id === targetId);
+      if (dragIdx < 0 || targetIdx < 0 || dragIdx === targetIdx) return;
+      const [item] = tasks.splice(dragIdx, 1);
+      const insertAt = dragIdx < targetIdx ? targetIdx : targetIdx;
+      tasks.splice(insertAt, 0, item);
+      tasks.forEach((t, idx) => t.order = idx);
+      saveAndRender();
+    }
+
+    function saveAndRender() {
+      saveTasks();
+      render();
+    }
+
+    // Init event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTasks();
+      // initial theme
+      const savedTheme = localStorage.getItem('todo_theme');
+      if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+      // form
+      document.getElementById('taskForm').addEventListener('submit', addTaskFromForm);
+      // filters
+      statusFilter.addEventListener('change', render);
+      categoryFilter.addEventListener('change', render);
+      // export/import
+      exportBtn.addEventListener('click', () => {
+        const data = JSON.stringify(tasks, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'todo_tasks.json';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      });
+      importBtn.addEventListener('click', () => importInput.click());
+      importInput.addEventListener('change', (e) => {
+        const f = e.target.files[0]; if (!f) return; const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            if (Array.isArray(data)) {
+              // Normalize to task shape
+              data.forEach(it => {
+                const t = {
+                  id: it.id || Date.now() + Math.random(),
+                  title: it.title ?? 'Nova tarefa',
+                  description: it.description ?? '',
+                  category: it.category ?? 'Sem Categoria',
+                  completed: !!it.completed,
+                  createdAt: it.createdAt ?? Date.now(),
+                  order: it.order ?? tasks.length
+                };
+                tasks.push(t);
+              });
+              saveAndRender();
+            } else {
+              alert('JSON não é um array de tarefas');
+            }
+          } catch (err) {
+            alert('Falha ao importar JSON');
+          }
+        };
+        reader.readAsText(f);
+      });
+      // theme toggle
+      themeBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        const next = current === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('todo_theme', next);
+      });
+      // initial render
+      render();
+    });
+
+  </script>
+</body>
+</html>
